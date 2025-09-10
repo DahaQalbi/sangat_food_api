@@ -37,7 +37,7 @@ class DbOperation
     function addOrder($tableNo, $orderType, $discount, $cost, $sale, $net, $status, $deal_id,$userId,$delivery_fee,$note,$delivery_type,$address,$sgst,$cgst)
     {
         $stmt = $this->con->prepare("INSERT INTO `orders`( `tableNo`, `orderType`, `discount`, `cost`, `sale`, `net`, `status`, `deal_id`, `userId`, `delivery_fee`, `note`, `delivery_type`,`address`,`sgst`, `cgst` ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)");
-        $stmt->bind_param("ssssssssssssssss", $tableNo, $orderType, $discount, $cost, $sale, $net, $status, $deal_id,$userId,$delivery_fee,$note,$delivery_type,$address,$sgst,$cgst);
+        $stmt->bind_param("sssssssiissssss", $tableNo, $orderType, $discount, $cost, $sale, $net, $status, $deal_id,$userId,$delivery_fee,$note,$delivery_type,$address,$sgst,$cgst);
         
         if ($stmt->execute()) {
             $orderId = $stmt->insert_id;
@@ -51,6 +51,19 @@ class DbOperation
     {
         $stmt = $this->con->prepare("INSERT INTO `order_details`( `order_id`, `product_id`, `size`, `cost`, `sale`, `note` ) VALUES (?,?,?,?,?,?)");
         $stmt->bind_param("iissss", $order_id, $product_id, $size, $cost, $sale,$note);
+        
+        if ($stmt->execute()) {
+            $orderId = $stmt->insert_id;
+            $stmt->close();
+            return $orderId;
+        }
+        $stmt->close();
+        return false;
+    }
+    function updateOrderDetails($id, $product_id, $size, $cost, $sale,$note)
+    {
+        $stmt = $this->con->prepare("UPDATE `order_details` SET `product_id` = ?, `size` = ?, `cost` = ?, `sale` = ?, `note` = ? WHERE `id` = ?");
+        $stmt->bind_param("issssi",  $product_id, $size, $cost, $sale,$note,$id);
         
         if ($stmt->execute()) {
             $orderId = $stmt->insert_id;
@@ -122,9 +135,9 @@ class DbOperation
     function getAllOrders()
     {
  
-       $stmt = $this->con->prepare("SELECT `id`, `tableNo`, `orderType`, `discount`, `cost`, `sale`, `net`, `status`, `create_at`, `deal_id` FROM `orders`");
+       $stmt = $this->con->prepare("SELECT `id`, `tableNo`, `orderType`, `discount`, `cost`, `sale`, `net`, `status`, `create_at`, `deal_id`, `userId`, `delivery_fee`, `note`, `delivery_type`, `address`, `sgst`, `cgst`,(SELECT name FROM users WHERE id = userId) AS name,(SELECT name FROM deals WHERE id = deal_id) AS deal_name FROM `orders`");
        $stmt->execute();
-       $stmt->bind_result($id,$tableNo,$orderType,$discount,$cost,$sale,$net,$status,$create_at,$deal_id);
+       $stmt->bind_result($id,$tableNo,$orderType,$discount,$cost,$sale,$net,$status,$create_at,$deal_id,$userId,$delivery_fee,$note,$delivery_type,$address,$sgst,$cgst,$name,$deal_name);
        $userData = array();
        while ($stmt->fetch()) {
            $userData[$id] = array(
@@ -138,16 +151,25 @@ class DbOperation
                'net' => $net,
                'status' => $status,
                'create_at' => $create_at,
-               'deal_id' => $deal_id
+               'deal_id' => $deal_id,
+               'userId' => $userId,
+               'delivery_fee' => $delivery_fee,
+               'note' => $note,
+               'delivery_type' => $delivery_type,
+               'address' => $address,
+               'sgst' => $sgst,
+               'cgst' => $cgst,
+               'customerName' => $name,
+               'deal_name' => $deal_name
            );
        }
 
 
-       $stmt = $this->con->prepare("SELECT `id`, `order_id`, `product_id`, `size`, `cost`, `sale`, `created_at`,(SELECT image FROM products WHERE id = order_details.`product_id`) AS image,(SELECT name FROM products WHERE id = order_details.`product_id`) AS name FROM `order_details` WHERE `order_id` = ?");
+       $stmt = $this->con->prepare("SELECT `id`, `order_id`, `product_id`, `size`, `cost`, `sale`,`note`, `created_at`,(SELECT image FROM products WHERE id = order_details.`product_id`) AS image,(SELECT name FROM products WHERE id = order_details.`product_id`) AS name FROM `order_details` WHERE `order_id` = ?");
        foreach ($userData as $id => &$item) {
            $stmt->bind_param("i", $id);
            $stmt->execute();
-           $stmt->bind_result($id,$order_id,$product_id,$size,$cost,$sale,$created_at,$image,$name);
+           $stmt->bind_result($id,$order_id,$product_id,$size,$cost,$sale,$note,$created_at,$image,$name);
            while ($stmt->fetch()) {
                $sizeData = array(
                    'id' => $id,
@@ -156,6 +178,7 @@ class DbOperation
                    'size' => $size,
                    'cost' => $cost,
                    'sale' => $sale,
+                   'note' => $note,
                    'created_at' => $created_at,
                    'image' => $image,
                    'name' => $name
@@ -177,10 +200,10 @@ class DbOperation
         return $result;
     }
     
-    function updateOrder($id, $tableNo, $product_id, $sizeType_id, $quantity, $discount, $cost, $sale, $net, $status)
+    function updateOrder($id, $tableNo, $product_id, $sizeType_id, $quantity, $discount, $cost, $sale, $net, $status,$deal_id,$userId,$delivery_fee,$note,$delivery_type,$address,$sgst,$cgst)
     {
-        $stmt = $this->con->prepare("UPDATE `orders` SET `tableNo` = ?, `product_id` = ?, `sizeType_id` = ?, `quantity` = ?, `discount` = ?, `cost` = ?, `sale` = ?, `net` = ?, `status` = ? WHERE `id` = ?");
-        $stmt->bind_param("siiisssssi", $tableNo, $product_id, $sizeType_id, $quantity, $discount, $cost, $sale, $net, $status, $id);
+        $stmt = $this->con->prepare("UPDATE `orders` SET `tableNo` = ?, `product_id` = ?, `sizeType_id` = ?, `quantity` = ?, `discount` = ?, `cost` = ?, `sale` = ?, `net` = ?, `status` = ?, `deal_id`=?,`userId`=?,`delivery_fee`=?,`note`=?,`delivery_type`=?,`address`=?,`sgst`=?,`cgst`= ? WHERE `id` = ?");
+        $stmt->bind_param("siiisssssiissssssi", $tableNo, $product_id, $sizeType_id, $quantity, $discount, $cost, $sale, $net, $status, $deal_id,$userId,$delivery_fee,$note,$delivery_type,$address,$sgst,$cgst, $id);
         $result = $stmt->execute();
         $stmt->close();
         return $result;
@@ -405,7 +428,7 @@ class DbOperation
     }
     function getAllManager()
     {
-        $stmt = $this->con->prepare("SELECT `id`, `email`,`password`, `role`, `created_at`, `phone`, `name`,cnic`, `image`, `agrement` FROM `users` WHERE `role` = 'manager'");
+        $stmt = $this->con->prepare("SELECT `id`, `email`,`password`, `role`, `created_at`, `phone`, `name`,`cnic`, `image`, `agrement` FROM `users` WHERE `role` = 'manager'");
         $stmt->execute();
         $stmt->bind_result($id, $email, $password, $role, $created_at, $phone, $name,$cnic,$image,$agrement);
         
@@ -776,9 +799,9 @@ class DbOperation
     function getAllProducts()
     {
 
-        $stmt = $this->con->prepare("SELECT products.id AS productId,products.name,products.image,products.create_at,categories.category FROM `products` JOIN categories ON products.category_id = categories.id");
+        $stmt = $this->con->prepare("SELECT products.id AS productId,products.name,products.image,products.create_at,categories.category,(SELECT COUNT(*) FROM order_details WHERE order_details.product_id = products.id) AS totalOrder FROM `products` JOIN categories ON products.category_id = categories.id");
         $stmt->execute();
-        $stmt->bind_result($productId,$name,$image,$create_at,$category);
+        $stmt->bind_result($productId,$name,$image,$create_at,$category,$totalOrder);
         $userData = array();
         while ($stmt->fetch()) {
             $userData[$productId] = array(
@@ -787,7 +810,8 @@ class DbOperation
                 'sizeType' => array(),
                 'image' => $image,
                 'create_at' => $create_at,
-                'category' => $category
+                'category' => $category,
+                'totalOrder' => $totalOrder
             );
         }
 

@@ -604,12 +604,28 @@ $app->put('/updateOrder', function (Request $request, Response $response) {
     $sale = $requestData->sale;
     $net = $requestData->net;
     $status = $requestData->status;
+    $deal_id = $requestData->deal_id;
+    $userId = $requestData->userId;
+    $delivery_fee = $requestData->delivery_fee;
+    $note = $requestData->note;
+    $delivery_type = $requestData->delivery_type;
+    $address = $requestData->address;
+    $sgst = $requestData->sgst;
+    $cgst = $requestData->cgst;
     
     $db = new DbOperation();
-    $result = $db->updateOrder($id, $tableNo, $product_id, $sizeType_id, $quantity, $discount, $cost, $sale, $net, $status);
+    $result = $db->updateOrder($id, $tableNo, $product_id, $sizeType_id, $quantity, $discount, $cost, $sale, $net, $status,$deal_id,$userId,$delivery_fee,$note,$delivery_type,$address,$sgst,$cgst);
     
     $responseData = array();
     if ($result) {
+        foreach ($requestData->orderDetails as $orderDetail) {
+            if($orderDetail->id){
+                $db->updateOrderDetails($orderDetail->id, $orderDetail->product_id, $orderDetail->size, $orderDetail->cost, $orderDetail->sale,$orderDetail->note);
+            } else {
+                $db->orderDetails($id, $orderDetail->product_id, $orderDetail->size, $orderDetail->cost, $orderDetail->sale,$orderDetail->note);
+            }
+            
+        }
         $responseData['error'] = false;
         $responseData['message'] = "Order updated successfully";
     } else {
