@@ -26,39 +26,102 @@ $app->post('/login', function (Request $request, Response $response) {
         $responseData['error'] = false;
         $responseData['message'] = "Login Successfully";
         $responseData['data'] = $db->Login($email, $password,$role);
+
     } else {
         $responseData['error'] = true;
-        $responseData['message'] = "Invalid Credential" . count($db->Login($email, $password,$role));
+        $responseData['message'] = "Invalid Credential" ;
     }
     $response->getBody()->write(json_encode($responseData));
 });
 
+$app->post('/syncData', function (Request $request, Response $response) {
+    $requestData = json_decode($request->getBody());
+    $time = $requestData->time;
+    $type = $requestData->table;
+    $db = new DbOperation();
+    if($type == 'users'){
+        $unSyncManager = $db->getUnSyncManager($time);
+    }else if($type == 'categories'){
+        $unSyncCategory = $db->getUnSyncCategories($time);
+    }else if($type == 'products'){
+        $unSyncProducts = $db->getUnSyncProducts($time);
+    }else if($type == 'deals'){
+        $unSyncDeals = $db->getUnSyncDeals($time);
+    } else if($type == 'orders'){
+        $unSyncOrders = $db->getUnSyncOrders($time);
+    }
+
+    // Create response object
+    $responseData = new stdClass();
+    if($type == 'users'){
+        $responseData->data = $unSyncManager;
+    }else if($type == 'categories'){
+        $responseData->data = $unSyncCategory;
+    }else if($type == 'products'){
+        $responseData->data = $unSyncProducts;
+    }else if($type == 'deals'){
+        $responseData->data = $unSyncDeals;
+    }else if($type == "orders"){
+        $responseData->data = $unSyncOrders;
+    }
+
+    $response->getBody()->write(json_encode($responseData));
+    return $response->withHeader('Content-Type', 'application/json');
+});
+$app->post('/syncDeletedData', function (Request $request, Response $response) {
+    $requestData = json_decode($request->getBody());
+    $time = $requestData->time;
+    $db = new DbOperation();
+    $unSyncDeletedRecord = $db->getUnSyncDeletedRecord($time);
+    $response->getBody()->write(json_encode($unSyncDeletedRecord));
+    return $response->withHeader('Content-Type', 'application/json');
+});
 // Add a new manager
 $app->post('/addManager', function (Request $request, Response $response) {
     $requestData = json_decode($request->getBody());
     $email = $requestData->email;
     $password = $requestData->password;
+    $id = $requestData->id;
     $role = $requestData->role;
     $phone = $requestData->phone;
     $name = $requestData->name;
     $cnic = $requestData->cnic;
     $image = $requestData->image;
     $agrement = $requestData->agrement;
+    $extension = $requestData->extention;
+    $create_at = $requestData->created_at;
     $db = new DbOperation();
     $responseData = array();
-    if ($db->addManager($email, $password, $role, $phone, $name,$cnic,$image,$agrement) === USER_UPDATED) {
-        $responseData['error'] = false;
-        $responseData['message'] = "Manager added successfully";
-    } else if ($db->addManager($email, $password, $role, $phone, $name,$cnic,$image,$agrement) === USER_ALREADY_EXIST) {
-        $responseData['error'] = true;
-        $responseData['message'] = "Manager with this email already exists";
+    if($db->isUsersIdExist($id)){
+        $result = $db->updateManager($id, $email, $password, $phone, $name,$create_at,$role);
+        if($result){
+            $responseData['error'] = false;
+            $responseData['message'] = "Manager updated successfully";
+        } else {
+            $responseData['error'] = true;
+            $responseData['message'] = "Manager not updated successfully";
+        }
     } else {
-        $responseData['error'] = true;
-        $responseData['message'] = "Failed to add manager";
+        $result = $db->addManager($email, $password, $role, $phone, $name,$cnic,$image,$agrement,$extension,$id,$create_at);
+        if($result){
+            $responseData['error'] = false;
+            $responseData['message'] = "Manager added successfully";
+        } else {
+            $responseData['error'] = true;
+            $responseData['message'] = "Manager not added successfully";
+        }
     }
     $response->getBody()->write(json_encode($responseData));
+    return $response->withHeader('Content-Type', 'application/json');
 });
 
+
+$app->get('/getGalleryImage/{id}', function (Request $request, Response $response) {
+    $id = $request->getAttribute('id');
+    $db = new DbOperation();
+    $result = $db->getGalleryImage($id);
+    $response->getBody()->write(json_encode($result));
+});
 // Get manager by ID
 $app->get('/getManagerById/{id}', function (Request $request, Response $response) {
     $id = $request->getAttribute('id');
@@ -74,37 +137,13 @@ $app->get('/allManager', function (Request $request, Response $response) {
     return $response->withHeader('Content-Type', 'application/json');
 });
 
-
-// Update manager details
-$app->put('/updateManager', function (Request $request, Response $response) {
-    $requestData = json_decode($request->getBody());
-    $id = $requestData->id;
-    $email = $requestData->email;
-    $password = $requestData->password ?? null;
-    $phone = $requestData->phone;
-    $name = $requestData->name;
-    $cnic = $requestData->cnic;
-    $image = $requestData->image;
-    $agrement = $requestData->agrement;
+$app->get('/getFinance', function (Request $request, Response $response) {
+   
     $db = new DbOperation();
-    $responseData = array();
-    
-    $result = $db->updateManager($id, $email, $password, $phone, $name,$cnic,$image,$agrement);
-    
-    if ($result === USER_UPDATED) {
-        $responseData['error'] = false;
-        $responseData['message'] = "Manager updated successfully";
-    } else if ($result === USER_NOT_UPDATED) {
-        $responseData['error'] = true;
-        $responseData['message'] = "Failed to update manager";
-    } else if ($result === USER_ALREADY_EXIST) {
-        $responseData['error'] = true;
-        $responseData['message'] = "Email already exists";
-    }
-    
-    $response->getBody()->write(json_encode($responseData));
+    $result = $db->getFinance();
+    $response->getBody()->write(json_encode($result));
+    return $response->withHeader('Content-Type', 'application/json');
 });
-
 // Delete manager by ID
 $app->delete('/deleteManager/{id}', function (Request $request, Response $response) {
     $id = $request->getAttribute('id');
@@ -122,99 +161,23 @@ $app->delete('/deleteManager/{id}', function (Request $request, Response $respon
     $response->getBody()->write(json_encode($responseData));
 });
 
-
-
-// Add a new waiter
-$app->post('/addWaiter', function (Request $request, Response $response) {
+$app->put('/deleteRecord', function (Request $request, Response $response) {
     $requestData = json_decode($request->getBody());
-    $uid = $requestData->uid;
-    $name = $requestData->name;
-    $phone = $requestData->phone;
-    $email = $requestData->email;
-    $address = $requestData->address;
-    $cnic = $requestData->cnic;
-   
-    $db = new DbOperation();
-    $responseData = array();
-    $result = $db->addWaiter($uid, $name, $phone, $email, $address, $cnic);
-    
-    if ($result === USER_UPDATED) {
-        $responseData['error'] = false;
-        $responseData['message'] = "Waiter added successfully";
-    } else if ($result === USER_ALREADY_EXIST) {
-        $responseData['error'] = true;
-        $responseData['message'] = "Waiter with this phone, email or CNIC already exists";
-    } else {
-        $responseData['error'] = true;
-        $responseData['message'] = "Failed to add waiter";
-    }
-    $response->getBody()->write(json_encode($responseData));
-});
-
-// Get all waiters for a user
-$app->get('/getAllWaiters/{uid}', function (Request $request, Response $response) {
-    $uid = $request->getAttribute('uid');
-    $db = new DbOperation();
-    $result = $db->getAllWaiters($uid);
-    $response->getBody()->write(json_encode($result));
-});
-$app->get('/allWaiters', function (Request $request, Response $response) {
-    
-    $db = new DbOperation();
-    $result = $db->getAllWaitersWithoutId();
-    $response->getBody()->write(json_encode($result));
-    return $response->withHeader('Content-Type', 'application/json');
-});
-
-// Get waiter by ID
-$app->get('/getWaiterById/{id}', function (Request $request, Response $response) {
-    $id = $request->getAttribute('id');
-    $db = new DbOperation();
-    $result = $db->getWaiterById($id);
-    $response->getBody()->write(json_encode($result));
-});
-
-// Update waiter details
-$app->put('/updateWaiter', function (Request $request, Response $response) {
-    $requestData = json_decode($request->getBody());
-    $id = $requestData->id;
-    $uid = $requestData->uid;
-    $name = $requestData->name;
-    $phone = $requestData->phone;
-    $email = $requestData->email;
-    $address = $requestData->address;
-    $cnic = $requestData->cnic;
-   
-    $db = new DbOperation();
-    $responseData = array();
-    $result = $db->updateWaiter($id, $uid, $name, $phone, $email, $address, $cnic);
-    
-    if ($result === USER_UPDATED) {
-        $responseData['error'] = false;
-        $responseData['message'] = "Waiter updated successfully";
-    } else if ($result === USER_ALREADY_EXIST) {
-        $responseData['error'] = true;
-        $responseData['message'] = "Waiter with this phone, email or CNIC already exists";
-    } else {
-        $responseData['error'] = true;
-        $responseData['message'] = "Failed to update waiter";
-    }
-    $response->getBody()->write(json_encode($responseData));
-});
-
-// Delete waiter
-$app->delete('/deleteWaiter/{id}', function (Request $request, Response $response) {
-    $id = $request->getAttribute('id');
-    
+    $id = (int)$requestData->id;
+    $key = $requestData->key;
+    $table = $requestData->table;
+    $deletedBy = $requestData->deletedBy;
+    $created_at = $requestData->created_at;
     $db = new DbOperation();
     $responseData = array();
     
-    if ($db->deleteWaiter($id)) {
+    if ($db->deleteRecord($key,$table,$id)) {
+        $db->deletedRecord($key,$id,$table,$deletedBy,$created_at);
         $responseData['error'] = false;
-        $responseData['message'] = "Waiter deleted successfully";
+        $responseData['message'] = "Record deleted successfully";
     } else {
         $responseData['error'] = true;
-        $responseData['message'] = "Failed to delete waiter";
+        $responseData['message'] = "Failed to delete Record";
     }
     
     $response->getBody()->write(json_encode($responseData));
@@ -223,23 +186,39 @@ $app->delete('/deleteWaiter/{id}', function (Request $request, Response $respons
 // Add a new category
 $app->post('/addCategory', function (Request $request, Response $response) {
     $requestData = json_decode($request->getBody());
+    $id = $requestData->id;
     $category = $requestData->category;
+    $create_at = $requestData->create_at;
     $db = new DbOperation();
     $responseData = array();
+    if($db->isUserExist($id)){
+        $result = $db->UpdateCategory($category,$id, $create_at);
+        if ($result === CATAGORY_CREATED) {
+            $responseData['error'] = false;
+            $responseData['message'] = "Category added successfully";
 
-    $result = $db->addCategory($category);
-    
-    if ($result === CATAGORY_CREATED) {
-        $responseData['error'] = false;
-        $responseData['message'] = "Category added successfully";
-    } else if ($result === CATAGORY_EXIST) {
-        $responseData['error'] = true;
-        $responseData['message'] = "Category already exists";
+        } else if ($result === CATAGORY_EXIST) {
+            $responseData['error'] = true;
+            $responseData['message'] = "Category already exists";
+        } else {
+            $responseData['error'] = true;
+            $responseData['message'] = "Failed to add category";
+        }
+        $response->getBody()->write(json_encode($responseData));
     } else {
-        $responseData['error'] = true;
-        $responseData['message'] = "Failed to add category";
-    }
-    $response->getBody()->write(json_encode($responseData));
+        $result = $db->addCategoryWithId($id,$category, $create_at);
+        if ($result === CATAGORY_CREATED) {
+            $responseData['error'] = false;
+            $responseData['message'] = "Category added successfully";
+        } else if ($result === CATAGORY_EXIST) {
+            $responseData['error'] = true;
+            $responseData['message'] = "Category already exists";
+        } else {
+            $responseData['error'] = true;
+            $responseData['message'] = "Failed to add category";
+        }
+        $response->getBody()->write(json_encode($responseData));
+    }  
 });
 
 // Get all categories
@@ -255,31 +234,6 @@ $app->get('/getCategoryById/{id}', function (Request $request, Response $respons
     $db = new DbOperation();
     $result = $db->getCategoryById($id);
     $response->getBody()->write(json_encode($result));
-});
-
-// Update category
-$app->put('/updateCategory', function (Request $request, Response $response) {
-    $requestData = json_decode($request->getBody());
-    $id = $requestData->id;
-    $category = $requestData->category;
-    
-    $db = new DbOperation();
-    $responseData = array();
-    
-    $result = $db->updateCategory($id, $category);
-    
-    if ($result === CATAGORY_UPDATED) {
-        $responseData['error'] = false;
-        $responseData['message'] = "Category updated successfully";
-    } else if ($result === CATAGORY_EXIST) {
-        $responseData['error'] = true;
-        $responseData['message'] = "Category with this name already exists";
-    } else {
-        $responseData['error'] = true;
-        $responseData['message'] = "Failed to update category";
-    }
-    
-    $response->getBody()->write(json_encode($responseData));
 });
 
 // Delete category
@@ -302,26 +256,58 @@ $app->delete('/deleteCategory/{id}', function (Request $request, Response $respo
 $app->post('/addProduct', function (Request $request, Response $response) {
     $requestData = json_decode($request->getBody());
     $category_id = $requestData->category_id;
+    $id = $requestData->id;
     $image = $requestData->image;
     $name = $requestData->name;
     $sizeType= $requestData->sizeType;
+    $gallery= $requestData->gallery;
+    $prepration_time = $requestData->prepration_time;
+    $isAvailable = $requestData->isAvailable;
+    $description = $requestData->description;
+    $hasVariant = $requestData->hasVariant;
+    $create_at = $requestData->create_at;
     $db = new DbOperation();
     $responseData = array();
-    
-    $result = $db->addProduct($category_id, $name,$image);
-    
-    if ($result !== PRODUCT_EXIST) {
+    if($db->isProductIdExist($id)){
+        $result = $db->updateProduct($category_id, $name,$image,$prepration_time,$isAvailable,$description,$id,$create_at);
+        if ($result) {
+            if(Count($gallery) > 0){
+                foreach ($gallery as $gallery) {
+                    if($db->isGalleryIdExist($gallery->id)){
+                        $db->updateGallery($id, $gallery->image,$gallery->id);
+                    }else {
+                        $db->addGallery($id, $gallery->image,$gallery->id);
+                    }
+                }
+            }
+            if($hasVariant){
+                foreach ($sizeType as $sizeType) {
+                    if($db->isSizeTypeIdExist($sizeType->id)){
+                        $db->updateSizeType($id, $sizeType->type, $sizeType->cost, $sizeType->sale,$sizeType->id);
+                    }else {
+                        $db->addSizeType($id, $sizeType->type, $sizeType->cost, $sizeType->sale,$sizeType->id);
+                    }
+                }
+            }
+        }
+        $responseData['error'] = false;
+        $responseData['message'] = "Product updated successfully";
+    }  else {
+        $result = $db->addProduct($category_id, $name,$image,$prepration_time,$isAvailable,$description,$id,$create_at);
+        if ($result !== PRODUCT_EXIST) {
+            if(Count($gallery) > 0){
+                foreach ($gallery as $gallery) {
+                    $db->addGallery($id, $gallery->image,$gallery->id);
+                }
+            }
+        }
         $responseData['error'] = false;
         $responseData['message'] = "Product added successfully";
-        foreach ($sizeType as $sizeType) {
-            $db->addSizeType($result, $sizeType->type, $sizeType->cost, $sizeType->sale);
+        if($hasVariant){
+            foreach ($sizeType as $sizeType) {
+                $db->addSizeType($id, $sizeType->type, $sizeType->cost, $sizeType->sale,$sizeType->id);
+            }
         }
-    } elseif ($result === PRODUCT_EXIST) {
-        $responseData['error'] = true;
-        $responseData['message'] = "Product already exists in this category";
-    } else {
-        $responseData['error'] = true;
-        $responseData['message'] = "Failed to add product";
     }
     
     $response->getBody()->write(json_encode($responseData));
@@ -370,32 +356,7 @@ $app->get('/getProductById/{id}', function (Request $request, Response $response
     $response->getBody()->write(json_encode($responseData));
 });
 
-// Update Product
-$app->put('/updateProduct', function (Request $request, Response $response) {
-    $requestData = json_decode($request->getBody());
-    $id = $requestData->id;
-    $category_id = $requestData->category_id;
-    $name = $requestData->name;
-    $image = $requestData->image;
-    
-    $db = new DbOperation();
-    $responseData = array();
-    
-    $result = $db->updateProduct($id, $category_id, $name,$image);
-    
-    if ($result === PRODUCT_UPDATED) {
-        $responseData['error'] = false;
-        $responseData['message'] = "Product updated successfully";
-    } elseif ($result === PRODUCT_EXIST) {
-        $responseData['error'] = true;
-        $responseData['message'] = "Product with this name already exists in the selected category";
-    } else {
-        $responseData['error'] = true;
-        $responseData['message'] = "Failed to update product";
-    }
-    
-    $response->getBody()->write(json_encode($responseData));
-});
+
 
 // Delete Product
 $app->delete('/deleteProduct/{id}', function (Request $request, Response $response, $args) {
@@ -427,35 +388,6 @@ $app->get('/getSizeTypesByProduct/{product_id}', function (Request $request, Res
     $response->getBody()->write(json_encode($responseData));
 });
 
-// Update Size Type
-$app->put('/updateSizeType', function (Request $request, Response $response) {
-    $requestData = json_decode($request->getBody());
-    $id = $requestData->id;
-    $type = $requestData->type;
-    $cost = $requestData->cost;
-    $sale = $requestData->sale;
-    
-    $db = new DbOperation();
-    $responseData = array();
-    
-    $result = $db->updateSizeType($id, $type, $cost, $sale);
-    
-    if ($result === SIZE_TYPE_UPDATED) {
-        $responseData['error'] = false;
-        $responseData['message'] = "Size type updated successfully";
-    } elseif ($result === SIZE_TYPE_EXIST) {
-        $responseData['error'] = true;
-        $responseData['message'] = "This size type already exists for the product";
-    } elseif ($result === SIZE_TYPE_NOT_FOUND) {
-        $responseData['error'] = true;
-        $responseData['message'] = "Size type not found";
-    } else {
-        $responseData['error'] = true;
-        $responseData['message'] = "Failed to update size type";
-    }
-    
-    $response->getBody()->write(json_encode($responseData));
-});
 
 // Delete Size Type
 $app->delete('/deleteSizeType/{id}', function (Request $request, Response $response, $args) {
@@ -476,18 +408,16 @@ $app->delete('/deleteSizeType/{id}', function (Request $request, Response $respo
     $response->getBody()->write(json_encode($responseData));
 });
 
-
-
-
-
 $app->post('/addOrder', function (Request $request, Response $response) {
     $requestData = json_decode($request->getBody());
+    $id = $requestData->id;
     $tableNo = $requestData->tableNo;
     $orderType = $requestData->orderType;
     $discount = $requestData->discount;
     $cost = $requestData->cost;
     $sale = $requestData->sale;
     $net = $requestData->net;
+    $orderNumber = $requestData->orderNumber;
     $status = $requestData->status;
     $deal_id = $requestData->deal_id;
     $userId = $requestData->userId;
@@ -497,13 +427,32 @@ $app->post('/addOrder', function (Request $request, Response $response) {
     $address = $requestData->address;
     $sgst = $requestData->sgst;
     $cgst = $requestData->cgst;
+    
+    $orderTakerId = $requestData->orderTakerId;
+    $create_at = $requestData->create_at;
     $db = new DbOperation();
     $responseData = array();
-
-    $res = $db->addOrder($tableNo, $orderType, $discount, $cost, $sale, $net, $status, $deal_id,$userId,$delivery_fee,$note,$delivery_type,$address,$sgst,$cgst);
-    if ($res !== "UserNotAvailable") {
+    if($db->isOrderIdExist($id)){
+         $result = $db->updateOrder($id, $tableNo, $orderType, $discount, $cost, $sale, $net, $status,$deal_id,$userId,$delivery_fee,$note,$delivery_type,$address,$sgst,$cgst,$orderTakerId,$orderNumber,$create_at);
+         if($result){
+            foreach ($requestData->orderDetails as $orderDetail) {
+                if($orderDetail->id){
+                    $db->updateOrderDetails($orderDetail->id, $orderDetail->product_id, $orderDetail->size, $orderDetail->cost, $orderDetail->sale,$orderDetail->note,$orderDetail->quantity);
+                } else {
+                    $db->orderDetails($id, $orderDetail->product_id, $orderDetail->size, $orderDetail->cost, $orderDetail->sale,$orderDetail->note,$orderDetail->quantity,$orderDetail->id);
+                }
+            }
+            $responseData['error'] = false;
+            $responseData['message'] = "Order Form Submitted";
+        }else{
+            $responseData['error'] = true;
+            $responseData['message'] = "Order Form Not Submitted";
+        }
+    } else {
+        $res = $db->addOrder($id, $tableNo, $orderType, $discount, $cost, $sale, $net, $status, $deal_id,$userId,$delivery_fee,$note,$delivery_type,$address,$sgst,$cgst,$orderTakerId,$orderNumber,$create_at);
+        if ($res !== "UserNotAvailable") {
         foreach ($requestData->orderDetails as $orderDetail) {
-            $db->orderDetails($res, $orderDetail->product_id, $orderDetail->size, $orderDetail->cost, $orderDetail->sale,$orderDetail->note);
+            $db->orderDetails($id, $orderDetail->product_id, $orderDetail->size, $orderDetail->cost, $orderDetail->sale,$orderDetail->note,$orderDetail->quantity,$orderDetail->id);
         }
         $responseData['error'] = false;
         $responseData['message'] = "Order Form Submitted";
@@ -511,6 +460,8 @@ $app->post('/addOrder', function (Request $request, Response $response) {
         $responseData['error'] = true;
         $responseData['message'] = "Order Form Not Submitted";
     }
+    }
+    
     $response->getBody()->write(json_encode($responseData));
 });
 
@@ -520,18 +471,8 @@ $app->post('/addOrder', function (Request $request, Response $response) {
 $app->get('/getOrderById/{id}', function (Request $request, Response $response, $args) {
     $id = $args['id'];
     $db = new DbOperation();
-    $order = $db->getOrderById($id);
-    
-    $responseData = array();
-    if (!empty($order)) {
-        $responseData['error'] = false;
-        $responseData['order'] = $order;
-    } else {
-        $responseData['error'] = true;
-        $responseData['message'] = "Order not found";
-    }
-    
-    $response->getBody()->write(json_encode($responseData));
+    $order = $db->getAllOrdersByID($id);
+    $response->getBody()->write(json_encode($order));
     return $response->withHeader('Content-Type', 'application/json');
 });
 
@@ -550,10 +491,25 @@ $app->get('/getAllOrders', function (Request $request, Response $response, $args
     $response->getBody()->write(json_encode($responseData));
     return $response->withHeader('Content-Type', 'application/json');
 });
+$app->get('/getPendingOrder', function (Request $request, Response $response, $args) {
+  
+    $db = new DbOperation();
+    $orders = $db->getPendingOrder();
+    
+    $responseData = array(
+        'error' => false,
+        'count' => count($orders),
+        'orders' => $orders
+    );
+    
+    $response->getBody()->write(json_encode($responseData));
+    return $response->withHeader('Content-Type', 'application/json');
+});
 
 // Get orders by table number with optional status filter
 $app->get('/getOrdersByTable/{tableNo}', function (Request $request, Response $response, $args) {
     $tableNo = $args['tableNo'];
+
     
     $db = new DbOperation();
     $orders = $db->getOrdersByTable($tableNo);
@@ -567,7 +523,26 @@ $app->get('/getOrdersByTable/{tableNo}', function (Request $request, Response $r
     $response->getBody()->write(json_encode($responseData));
     return $response->withHeader('Content-Type', 'application/json');
 });
-
+$app->put('/updateUserStatus', function (Request $request, Response $response) {
+    $requestData = json_decode($request->getBody());
+    $id = $requestData->id;
+    $status = $requestData->status;
+    
+    $db = new DbOperation();
+    $result = $db->updateUserStatus($id, $status);
+    
+    $responseData = array();
+    if ($result) {
+        $responseData['error'] = false;
+        $responseData['message'] = "User status updated successfully";
+    } else {
+        $responseData['error'] = true;
+        $responseData['message'] = "Failed to update user status";
+    }
+    
+    $response->getBody()->write(json_encode($responseData));
+    return $response->withHeader('Content-Type', 'application/json');
+});
 // Update order status
 $app->put('/updateOrderStatus', function (Request $request, Response $response) {
     $requestData = json_decode($request->getBody());
@@ -590,52 +565,7 @@ $app->put('/updateOrderStatus', function (Request $request, Response $response) 
     return $response->withHeader('Content-Type', 'application/json');
 });
 
-// Update order details
-$app->put('/updateOrder', function (Request $request, Response $response) {
-    $requestData = json_decode($request->getBody());
-    
-    $id = $requestData->id;
-    $tableNo = $requestData->tableNo;
-    $product_id = $requestData->product_id;
-    $sizeType_id = $requestData->sizeType_id;
-    $quantity = $requestData->quantity;
-    $discount = $requestData->discount;
-    $cost = $requestData->cost;
-    $sale = $requestData->sale;
-    $net = $requestData->net;
-    $status = $requestData->status;
-    $deal_id = $requestData->deal_id;
-    $userId = $requestData->userId;
-    $delivery_fee = $requestData->delivery_fee;
-    $note = $requestData->note;
-    $delivery_type = $requestData->delivery_type;
-    $address = $requestData->address;
-    $sgst = $requestData->sgst;
-    $cgst = $requestData->cgst;
-    
-    $db = new DbOperation();
-    $result = $db->updateOrder($id, $tableNo, $product_id, $sizeType_id, $quantity, $discount, $cost, $sale, $net, $status,$deal_id,$userId,$delivery_fee,$note,$delivery_type,$address,$sgst,$cgst);
-    
-    $responseData = array();
-    if ($result) {
-        foreach ($requestData->orderDetails as $orderDetail) {
-            if($orderDetail->id){
-                $db->updateOrderDetails($orderDetail->id, $orderDetail->product_id, $orderDetail->size, $orderDetail->cost, $orderDetail->sale,$orderDetail->note);
-            } else {
-                $db->orderDetails($id, $orderDetail->product_id, $orderDetail->size, $orderDetail->cost, $orderDetail->sale,$orderDetail->note);
-            }
-            
-        }
-        $responseData['error'] = false;
-        $responseData['message'] = "Order updated successfully";
-    } else {
-        $responseData['error'] = true;
-        $responseData['message'] = "Failed to update order";
-    }
-    
-    $response->getBody()->write(json_encode($responseData));
-    return $response->withHeader('Content-Type', 'application/json');
-});
+
 
 // Delete order
 $app->delete('/deleteOrder/{id}', function (Request $request, Response $response, $args) {
@@ -655,6 +585,23 @@ $app->delete('/deleteOrder/{id}', function (Request $request, Response $response
     $response->getBody()->write(json_encode($responseData));
     return $response->withHeader('Content-Type', 'application/json');
 });
+$app->delete('/deleteOrderItem/{id}', function (Request $request, Response $response, $args) {
+    $id = $args['id'];
+    $db = new DbOperation();
+    $result = $db->deleteOrderItem($id);
+    
+    $responseData = array();
+    if ($result) {
+        $responseData['error'] = false;
+        $responseData['message'] = "Order item deleted successfully";
+    } else {
+        $responseData['error'] = true;
+        $responseData['message'] = "Failed to delete order item";
+    }
+    
+    $response->getBody()->write(json_encode($responseData));
+    return $response->withHeader('Content-Type', 'application/json');
+});
 $app->post('/addDeal', function (Request $request, Response $response) {
     $requestData = json_decode($request->getBody());
     
@@ -662,22 +609,56 @@ $app->post('/addDeal', function (Request $request, Response $response) {
     $expire_at = $requestData->expire_at;
     $cost = $requestData->cost;
     $sale = $requestData->sale;
-    $dealItem = $requestData->dealItem;
+    $id = $requestData->id;
+    $dealItem = $requestData->items;
+    $created_at = $requestData->create_at;
+
     $db = new DbOperation();
-    $result = $db->addDeal($name, $expire_at, $cost, $sale);
-    
     $responseData = array();
-    if ($result) {
-        foreach ($dealItem as $dealItem) {
-            // addDealItem expects (deal_id, product_id, quantity, sizeType)
-            $db->addDealItem($result, $dealItem->product_id, $dealItem->quantity, $dealItem->sizeType);
-        }
+    if($db->isDealsIdExist($id)){
+        $updated = $db->updateDeal(
+            $requestData->id ?? null,
+            $requestData->name ?? null,
+            $requestData->expire_at ?? null,
+            $requestData->cost ?? null,
+            $requestData->sale ?? null,
+            $requestData->create_at ?? null
+        );
+    
+     
+            foreach ($requestData->items as $item) {
+                if($db->isDealItemExist($item->id)){
+                    $db->UpdateDealItem(
+                        $id ,
+                        $item->id,
+                        $item->product_id,
+                        $item->quantity,
+
+                        $item->sizeType
+                    );
+                } else {
+                    $db->addDealItem($requestData->id , $item->product_id, $item->quantity, $item->sizeType, $item->id);
+                }
+            }
+   
         $responseData['error'] = false;
-        $responseData['message'] = "Deal added successfully";
-    } else {
-        $responseData['error'] = true;
-        $responseData['message'] = "Failed to add deal";
+        $responseData['message'] = "Deal updated successfully";
+    }else{
+        $result = $db->addDeal($name, $expire_at, $cost, $sale, $id,$created_at);
+        if ($result) {
+            foreach ($dealItem as $dealItem) {
+                $db->addDealItem($id, $dealItem->product_id, $dealItem->quantity, $dealItem->sizeType, $dealItem->id);
+            }
+            $responseData['error'] = false;
+            $responseData['message'] = "Deal added successfully";
+        } else {
+            $responseData['error'] = true;
+            $responseData['message'] = "Failed to add deal".$result ;
+        }
     }
+    
+  
+    
     
     $response->getBody()->write(json_encode($responseData));
     return $response->withHeader('Content-Type', 'application/json');
@@ -700,35 +681,6 @@ $app->get('/deals/{id}', function (Request $request, Response $response, array $
     }
     $response->getBody()->write(json_encode(['error' => true, 'message' => 'Deal not found']));
     return $response->withStatus(404)->withHeader('Content-Type', 'application/json');
-});
-
-$app->put('/deals/{id}', function (Request $request, Response $response, array $args) {
-    $id = (int)$args['id'];
-    $requestData = json_decode($request->getBody());
-    $db = new DbOperation();
-
-    $updated = $db->updateDeal(
-        $id,
-        $requestData->name ?? null,
-        $requestData->expire_at ?? null,
-        $requestData->cost ?? null,
-        $requestData->sale ?? null
-    );
-
-    if ($updated && isset($requestData->dealItem) && is_array($requestData->dealItem)) {
-        // Replace items set if provided
-        $db->deleteDealItems($id);
-        foreach ($requestData->dealItem as $item) {
-            $db->addDealItem($id, $item->product_id, $item->quantity, $item->sizeType);
-        }
-    }
-
-    $responseData = $updated
-        ? ['error' => false, 'message' => 'Deal updated successfully']
-        : ['error' => true, 'message' => 'Failed to update deal'];
-
-    $response->getBody()->write(json_encode($responseData));
-    return $response->withHeader('Content-Type', 'application/json');
 });
 
 $app->delete('/deleteDeal/{id}', function (Request $request, Response $response, array $args) {
